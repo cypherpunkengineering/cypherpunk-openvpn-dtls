@@ -449,6 +449,7 @@ void* connection_handle(void *info) {
 			}
 		}
 
+#if 0
 		if (len > 0) {
 			len = SSL_write(ssl, buf, len);
 
@@ -482,6 +483,7 @@ void* connection_handle(void *info) {
 					break;
 			}
 		}
+#endif
 	}
 
 	SSL_shutdown(ssl);
