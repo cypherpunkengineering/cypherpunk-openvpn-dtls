@@ -29,12 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#ifdef WIN32
-#include <winsock2.h>
-#include <Ws2tcpip.h>
-#define in_port_t u_short
-#define ssize_t int
-#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -44,13 +38,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#endif
 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-
 
 #define BUFFER_SIZE          (1<<16)
 #define COOKIE_SECRET_LENGTH 16
@@ -70,49 +62,27 @@ char Usage[] =
 "        -v      verbose\n"
 "        -V      very verbose\n";
 
-#if WIN32
-static HANDLE* mutex_buf = NULL;
-#else
 static pthread_mutex_t* mutex_buf = NULL;
-#endif
 
 static void locking_function(int mode, int n, const char *file, int line) {
 	if (mode & CRYPTO_LOCK)
-#ifdef WIN32
-		WaitForSingleObject(mutex_buf[n], INFINITE);
-	else
-		ReleaseMutex(mutex_buf[n]);
-#else
 		pthread_mutex_lock(&mutex_buf[n]);
 	else
 		pthread_mutex_unlock(&mutex_buf[n]);
-#endif
 }
 
 static unsigned long id_function(void) {
-#ifdef WIN32
-	return (unsigned long) GetCurrentThreadId();
-#else
 	return (unsigned long) pthread_self();
-#endif
 }
 
 int THREAD_setup() {
 	int i;
 
-#ifdef WIN32
-	mutex_buf = (HANDLE*) malloc(CRYPTO_num_locks() * sizeof(HANDLE));
-#else
 	mutex_buf = (pthread_mutex_t*) malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t));
-#endif
 	if (!mutex_buf)
 		return 0;
 	for (i = 0; i < CRYPTO_num_locks(); i++)
-#ifdef WIN32
-		mutex_buf[i] = CreateMutex(NULL, FALSE, NULL);
-#else
 		pthread_mutex_init(&mutex_buf[i], NULL);
-#endif
 	CRYPTO_set_id_callback(id_function);
 	CRYPTO_set_locking_callback(locking_function);
 	return 1;
@@ -127,11 +97,7 @@ int THREAD_cleanup() {
 	CRYPTO_set_id_callback(NULL);
 	CRYPTO_set_locking_callback(NULL);
 	for (i = 0; i < CRYPTO_num_locks(); i++)
-#ifdef WIN32
-	CloseHandle(mutex_buf[i]);
-#else
 	pthread_mutex_destroy(&mutex_buf[i]);
-#endif
 	free(mutex_buf);
 	mutex_buf = NULL;
 	return 1;
@@ -363,11 +329,7 @@ int dtls_verify_callback (int ok, X509_STORE_CTX *ctx) {
 	return 1;
 }
 
-#ifdef WIN32
-DWORD WINAPI connection_handle(LPVOID *info) {
-#else
 void* connection_handle(void *info) {
-#endif
 	ssize_t len;
 	char buf[BUFFER_SIZE];
 	char addrbuf[INET6_ADDRSTRLEN];
@@ -378,9 +340,7 @@ void* connection_handle(void *info) {
 	struct timeval timeout;
 	int num_timeouts = 0, max_timeouts = 5;
 
-#ifndef WIN32
 	pthread_detach(pthread_self());
-#endif
 
 	OPENSSL_assert(pinfo->client_addr.ss.ss_family == pinfo->server_addr.ss.ss_family);
 	fd = socket(pinfo->client_addr.ss.ss_family, SOCK_DGRAM, 0);
@@ -389,13 +349,9 @@ void* connection_handle(void *info) {
 		goto cleanup;
 	}
 
-#ifdef WIN32
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, (socklen_t) sizeof(on));
-#else
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*) &on, (socklen_t) sizeof(on));
 #ifdef SO_REUSEPORT
 	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const void*) &on, (socklen_t) sizeof(on));
-#endif
 #endif
 	switch (pinfo->client_addr.ss.ss_family) {
 		case AF_INET:
@@ -531,21 +487,13 @@ void* connection_handle(void *info) {
 	SSL_shutdown(ssl);
 
 cleanup:
-#ifdef WIN32
-	closesocket(fd);
-#else
 	close(fd);
-#endif
 	free(info);
 	SSL_free(ssl);
 	ERR_remove_state(0);
 	if (verbose)
 		printf("Thread %lx: done, connection closed.\n", id_function());
-#if WIN32
-	ExitThread(0);
-#else
 	pthread_exit( (void *) NULL );
-#endif
 }
 
 
@@ -556,12 +504,7 @@ void start_server(int port, char *local_address) {
 		struct sockaddr_in s4;
 		struct sockaddr_in6 s6;
 	} server_addr, client_addr;
-#if WIN32
-	WSADATA wsaData;
-	DWORD tid;
-#else
 	pthread_t tid;
-#endif
 	SSL_CTX *ctx;
 	SSL *ssl;
 	BIO *bio;
@@ -621,23 +564,15 @@ void start_server(int port, char *local_address) {
 	SSL_CTX_set_cookie_generate_cb(ctx, generate_cookie);
 	SSL_CTX_set_cookie_verify_cb(ctx, verify_cookie);
 
-#ifdef WIN32
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-
 	fd = socket(server_addr.ss.ss_family, SOCK_DGRAM, 0);
 	if (fd < 0) {
 		perror("socket");
 		exit(-1);
 	}
 
-#ifdef WIN32
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, (socklen_t) sizeof(on));
-#else
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*) &on, (socklen_t) sizeof(on));
 #ifdef SO_REUSEPORT
 	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const void*) &on, (socklen_t) sizeof(on));
-#endif
 #endif
 
 	if (server_addr.ss.ss_family == AF_INET) {
@@ -669,22 +604,13 @@ void start_server(int port, char *local_address) {
 		memcpy(&info->client_addr, &client_addr, sizeof(struct sockaddr_storage));
 		info->ssl = ssl;
 
-#ifdef WIN32
-		if (CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) connection_handle, info, 0, &tid) == NULL) {
-			exit(-1);
-		}	
-#else
 		if (pthread_create( &tid, NULL, connection_handle, info) != 0) {
 			perror("pthread_create");
 			exit(-1);
 		}
-#endif
 	}
 
 	THREAD_cleanup();
-#ifdef WIN32
-	WSACleanup();
-#endif
 }
 
 void start_client(char *remote_address, char *local_address, int port, int length, int messagenumber) {
@@ -702,9 +628,6 @@ void start_client(char *remote_address, char *local_address, int port, int lengt
 	BIO *bio;
 	int reading = 0;
 	struct timeval timeout;
-#if WIN32
-	WSADATA wsaData;
-#endif
 
 	memset((void *) &remote_addr, 0, sizeof(struct sockaddr_storage));
 	memset((void *) &local_addr, 0, sizeof(struct sockaddr_storage));
@@ -725,9 +648,6 @@ void start_client(char *remote_address, char *local_address, int port, int lengt
 		return;
 	}
 
-#ifdef WIN32
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
 
 	fd = socket(remote_addr.ss.ss_family, SOCK_DGRAM, 0);
 	if (fd < 0) {
@@ -902,17 +822,10 @@ void start_client(char *remote_address, char *local_address, int port, int lengt
 		}
 	}
 
-#ifdef WIN32
-	closesocket(fd);
-#else
 	close(fd);
-#endif
 	if (verbose)
 		printf("Connection closed.\n");
 
-#ifdef WIN32
-	WSACleanup();
-#endif
 }
 
 int main(int argc, char **argv)
