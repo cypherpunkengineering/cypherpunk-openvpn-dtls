@@ -31,8 +31,13 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <assert.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -55,6 +60,7 @@ int cookie_initialized=0;
 char Usage[] =
 "Usage: dtls_udp_echo [options] [address]\n"
 "Options:\n"
+"        -f      file to send\n"
 "        -l      message length (Default: 100 Bytes)\n"
 "        -p      port (Default: 23232)\n"
 "        -n      number of messages to send (Default: 5)\n"
@@ -615,7 +621,78 @@ void start_server(int port, char *local_address) {
 	THREAD_cleanup();
 }
 
-void start_client(char *remote_address, char *local_address, int port, int length, int messagenumber) {
+bool
+write_buf(SSL* ssl, uint8_t *buf, size_t buflen)
+{
+	socklen_t len = SSL_write(ssl, buf, buflen);
+
+	switch (SSL_get_error(ssl, len)) {
+		case SSL_ERROR_NONE:
+			if (verbose) {
+				printf("wrote %d bytes\n", (int) len);
+			}
+			break;
+		case SSL_ERROR_WANT_WRITE:
+			/* Just try again later */
+			printf("SSL_ERROR_WANT_WRITE\n");
+			exit(1);
+			break;
+		case SSL_ERROR_WANT_READ:
+			printf("SSL_ERROR_WANT_READ\n");
+			exit(1);
+			break;
+		case SSL_ERROR_SYSCALL:
+			printf("Socket write error: ");
+			exit(1);
+			break;
+		case SSL_ERROR_SSL:
+			printf("SSL write error: ");
+			printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(ssl, len));
+			exit(1);
+			break;
+		default:
+			printf("Unexpected error while writing!\n");
+			exit(1);
+			break;
+	}
+
+	return true;
+}
+
+void sendfile(SSL* ssl, const char *filename, int length)
+{
+	int fd, len;
+	struct stat st;
+	uint8_t buf[4046];
+	size_t readlen;
+
+	fd = open(filename, 0, O_RDONLY);
+	if (fd < 0) {
+		perror("open");
+		exit(1);
+	}
+
+	int error = fstat(fd, &st);
+	if (error < 0) {
+		perror("fstat");
+		exit(1);
+	}
+
+	if (!S_ISREG(st.st_mode)) {
+		printf("%s: not a file\n", filename);
+		exit(1);
+	}
+
+	readlen = sizeof buf;
+	if (length < readlen)
+		readlen = length;
+
+	while ((len = read(fd, &buf, readlen)) > 0) {
+		write_buf(ssl, buf, len);
+	}
+}
+
+void start_client(char *remote_address, char *local_address, int port, const char *filename, int length, int messagenumber) {
 	int fd;
 	union {
 		struct sockaddr_storage ss;
@@ -742,6 +819,12 @@ void start_client(char *remote_address, char *local_address, int port, int lengt
 
 	while (!(SSL_get_shutdown(ssl) & SSL_RECEIVED_SHUTDOWN)) {
 
+		if (filename != NULL) {
+			sendfile(ssl, filename, length);
+			SSL_shutdown(ssl);
+			exit(1);
+		}
+
 		if (messagenumber > 0) { 
 			len = SSL_write(ssl, buf, length);
 
@@ -836,6 +919,7 @@ int main(int argc, char **argv)
 	int length = 100;
 	int messagenumber = 5;
 	char local_addr[INET6_ADDRSTRLEN+1];
+	const char *filename = NULL;
 
 	memset(local_addr, 0, INET6_ADDRSTRLEN+1);
 
@@ -843,7 +927,11 @@ int main(int argc, char **argv)
 	argv++;
 
 	while (argc >= 1) {
-		if	(strcmp(*argv, "-l") == 0) {
+		if (strcmp(*argv, "-f") == 0) {
+			if (--argc < 1) goto cmd_err;
+			filename = strdup(*++argv);
+		}
+		else if (strcmp(*argv, "-l") == 0) {
 			if (--argc < 1) goto cmd_err;
 			length = atoi(*++argv);
 			if (length > BUFFER_SIZE)
@@ -880,7 +968,7 @@ int main(int argc, char **argv)
 	if (argc > 1) goto cmd_err;
 
 	if (argc == 1)
-		start_client(*argv, local_addr, port, length, messagenumber);
+		start_client(*argv, local_addr, port, filename, length, messagenumber);
 	else
 		start_server(port, local_addr);
 
