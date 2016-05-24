@@ -1,0 +1,28 @@
+#pragma once
+
+#include <boost/exception/errinfo_api_function.hpp>
+#include <boost/exception/errinfo_at_line.hpp>
+#include <boost/exception/errinfo_errno.hpp>
+#include <boost/exception/errinfo_file_handle.hpp>
+#include <boost/exception/errinfo_file_name.hpp>
+#include <boost/exception/errinfo_file_open_mode.hpp>
+#include <boost/exception/info.hpp>
+#include <boost/throw_exception.hpp>
+
+#include <exception>
+
+namespace cypher
+{
+	struct exception : virtual std::exception, virtual boost::exception {
+		static void init(void);
+	};
+
+	struct pexception : public exception
+	{
+		pexception(std::string);
+	};
+}
+
+#define THROW(x)	BOOST_THROW_EXCEPTION(x);
+
+// vim: ft=cpp
