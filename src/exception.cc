@@ -1,4 +1,5 @@
 #include <iostream>
+#include <mutex>
 
 #include <boost/exception/diagnostic_information.hpp> 
 #include <boost/exception/errinfo_api_function.hpp>
@@ -13,7 +14,7 @@
 namespace // local anonymous namespace
 {
 
-// TODO: al - generate backtrace & all that good stuff
+// TODO al - generate backtrace & all that good stuff
 void
 terminate()
 {
@@ -26,35 +27,57 @@ terminate()
 			need_rethrow = false;
 			throw;
 		}
-	} catch (boost::exception& e)
+	}
+	catch (cypher::pexception& e)
 	{
-		cypher::pexception* pe = dynamic_cast<cypher::pexception*>(&e);
+		std::cout << "terminate called after throwing an instance of 'cypher::pexception'" << std::endl;
 
 		std::cout << boost::diagnostic_information(e, false) << std::endl;
-	} catch (...)
+	}
+	catch (boost::exception& e)
 	{
-		std::cout << "got an unknown exception" << std::endl;
+		std::cout << "terminate called after throwing an instance of 'boost::exception'" << std::endl;
+
+		std::cout << boost::diagnostic_information(e, false) << std::endl;
+	}
+	catch (...)
+	{
+		std::cout << "terminate called after throwing an instance of an unknown exception" << std::endl;
 		std::abort();
 	}
 
 	std::abort();
 }
 
+// XXX al - dummy global object used for program-wide initialization.
+std::once_flag init_flag;
+class init
+{
+public:
+	init()
+	{
+		//std::call_once(init_flag, [](){ std::set_terminate(terminate); });
+	}
+private:
+};
+
+volatile init __init { };
+
 } // local anonymous namespace
 
 namespace cypher
 {
 
-pexception::pexception(std::string name)
+#undef runtime_error
+runtime_error::runtime_error(std::stringstream& ss) :
+	std::runtime_error(ss.str())
 {
-	*this << boost::errinfo_api_function("foo");
-	*this << boost::errinfo_errno(errno);
 }
 
-void
-exception::init()
+pexception::pexception(std::string name)
 {
-	std::set_terminate(terminate);
+	*this << boost::errinfo_api_function(name.c_str());
+	*this << boost::errinfo_errno(errno);
 }
 
 } // cypher::

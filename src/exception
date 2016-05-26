@@ -13,16 +13,21 @@
 
 namespace cypher
 {
-	struct exception : virtual std::exception, virtual boost::exception {
-		static void init(void);
+
+	struct _exception : virtual std::exception, virtual boost::exception { };
+
+	struct runtime_error : virtual std::runtime_error, virtual boost::exception {
+		runtime_error(std::stringstream&);
 	};
 
-	struct pexception : public exception
+	struct pexception : public _exception
 	{
 		pexception(std::string);
 	};
 }
 
-#define THROW(x)	BOOST_THROW_EXCEPTION(x);
+#define THROW(x)		BOOST_THROW_EXCEPTION((x));
+
+#define runtime_error(x)	runtime_error(static_cast<std::stringstream&>(std::stringstream() << x))
 
 // vim: ft=cpp
