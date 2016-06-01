@@ -1,0 +1,28 @@
+#pragma once
+
+#include <memory>
+
+#include <boost/asio.hpp>
+using namespace boost::asio;
+
+class UDPSession
+{
+public:
+	UDPSession(io_service&, ip::address_v4, short unsigned);
+	~UDPSession();
+
+	void write(std::shared_ptr<Packet>&);
+	void prime();
+
+private:
+	void asyncReceiveFrom();
+	void asyncReceiveFromHandler(std::shared_ptr<Packet>, const boost::system::error_code&, size_t);
+	void asyncSendToHandler(std::shared_ptr<Packet>, const boost::system::error_code&, size_t);
+
+	ip::udp::endpoint remote;
+	ip::udp::socket socket;
+
+	std::vector<uint8_t> readbuf;
+};
+
+// vim: ft=cpp

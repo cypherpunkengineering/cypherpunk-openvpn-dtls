@@ -35,10 +35,8 @@ add_custom_target(build_environment
 #
 project(dtls_multichannel)
 
-set(dm_SOURCES
-	src/exception.cc
-	src/main.cc
-	)
+file(GLOB dm_SOURCES src/*.cc)
+list(SORT dm_SOURCES)
 
 add_executable(dtls_multichannel ${dm_SOURCES})
 

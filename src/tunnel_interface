@@ -1,0 +1,51 @@
+#pragma once
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <linux/if_tun.h>
+
+#include <memory>
+#include <utility>
+
+#include <boost/asio.hpp>
+using namespace boost::asio;
+
+#include <cypher/processing_chain>
+
+class Tunnelnterface
+{
+public:
+	Tunnelnterface(io_service&, const std::string);
+	Tunnelnterface(io_service&);
+	~Tunnelnterface();
+
+	void setAddress(std::pair<ip::address_v4, ip::address_v4>);
+	void setAddress(ip::address_v4, ip::address_v4);
+	void up();
+
+	void setProcessingChain(ProcessingChain);
+
+	void write(std::shared_ptr<Packet>&) {};
+	void prime();
+private:
+	void asyncReadSome();
+	void asyncReadSomeHandler(std::shared_ptr<Packet>, const boost::system::error_code&, size_t);
+
+	ifreq ifr;
+	int fd;
+	int socket;
+
+	posix::stream_descriptor sd;
+
+	ProcessingChain chain;
+};
+
+// vim: ft=cpp

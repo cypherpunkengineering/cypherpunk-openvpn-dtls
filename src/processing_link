@@ -1,0 +1,10 @@
+#pragma once
+
+class ProcessingLink
+{
+public:
+	virtual ~ProcessingLink() {};
+	virtual int operator()(std::shared_ptr<Packet>&) = 0;
+};
+
+// vim: ft=cpp

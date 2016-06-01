@@ -1,0 +1,28 @@
+#pragma once
+
+#include <cstdint>
+
+#include <boost/noncopyable.hpp>
+
+class Packet : private boost::noncopyable
+{
+public:
+	Packet();
+	~Packet();
+
+	uint8_t* data();
+	void reserve(size_t);
+	void push(size_t);
+	void pull(size_t);
+	void put(size_t);
+	void trim(size_t);
+	const size_t size() const;
+	const size_t capacity() const;
+private:
+	uint8_t* begin;
+	uint8_t* end;
+	uint8_t* head;
+	uint8_t* tail;
+};
+
+// vim: ft=cpp
