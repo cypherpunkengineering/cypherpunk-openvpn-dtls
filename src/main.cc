@@ -13,18 +13,6 @@
 
 using namespace boost::asio;
 
-template <typename T>
-class Sink : public ProcessingLink
-{
-public:
-	Sink(std::shared_ptr<T>& session) : session(session) { }
-	~Sink() {};
-
-	int operator()(std::shared_ptr<Packet>& p) { session->write(p); };
-private:
-	std::shared_ptr<T> session;
-};
-
 int main(int argc, char** argv)
 {
 	io_service io;
@@ -50,9 +38,9 @@ int main(int argc, char** argv)
 	tunif->up();
 	tunif->prime();
 
-	std::shared_ptr<ProcessingLink> sink = std::make_shared<Sink<UDPSession>>(udp_client);
+	ProcessingLink UDPSink = [&](std::shared_ptr<Packet>& p) -> int { udp_client->write(p); return 0; };
 
-	ProcessingChain default_chain({ sink });
+	ProcessingChain default_chain({ UDPSink });
 
 	tunif->setProcessingChain(default_chain);
 

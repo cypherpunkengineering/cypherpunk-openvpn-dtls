@@ -1,21 +1,23 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <vector>
 
 #include <cypher/packet>
-#include <cypher/processing_link>
+
+using ProcessingLink = std::function<int(std::shared_ptr<Packet>&)>;
 
 class ProcessingChain
 {
 public:
 	ProcessingChain();
-	ProcessingChain(std::initializer_list<std::shared_ptr<ProcessingLink>>);
+	ProcessingChain(std::initializer_list<ProcessingLink>);
 	~ProcessingChain();
 
 	void operator()(std::shared_ptr<Packet>);
 private:
-	std::vector<std::shared_ptr<ProcessingLink>> links;
+	std::vector<ProcessingLink> links;
 };
 
 // vim: ft=cpp
