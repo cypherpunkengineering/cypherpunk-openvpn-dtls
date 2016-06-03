@@ -74,5 +74,7 @@ UDPSession::asyncReceiveFromHandler(std::shared_ptr<Packet> packet, const boost:
 {
 	packet->trim(bytes_transferred);
 
-	std::cout << "read " << bytes_transferred << " from " << this->remote << std::endl;
+	// XXX to our processing chain
+
+	this->asyncReceiveFrom();
 }

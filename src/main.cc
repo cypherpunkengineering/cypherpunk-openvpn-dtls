@@ -30,8 +30,10 @@ int main(int argc, char** argv)
 	}
 #endif
 
-	auto udp_server = std::make_shared<UDPSession>(io, ip::address_v4::from_string("0.0.0.0"), 9000);
 	auto udp_client = std::make_shared<UDPSession>(io, ip::address_v4::from_string("127.0.0.1"), 9000);
+
+	auto udp_server = std::make_shared<UDPSession>(io, ip::address_v4::from_string("0.0.0.0"), 9000);
+	udp_server->prime();
 
 	auto tunif = std::make_shared<Tunnelnterface>(io);
 	tunif->setAddress( { ip::address_v4::from_string("10.10.10.1"), ip::address_v4::from_string("10.10.10.2") } );
